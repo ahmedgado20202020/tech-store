@@ -3,133 +3,320 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تحليل بصمات العاملين لجميع الفروع تلقائياً</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script> 
-
+<title>استخراج بصمات الموظفين حسب الأكواد والشفت</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-body { font-family: 'Cairo', sans-serif; background: #f3f4f6; padding: 20px; text-align: center; }
-.container { background: #fff; padding: 20px; border-radius: 15px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 1200px; margin: auto; }
-input[type=file], input[type=time], button { margin: 10px; padding: 10px 15px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px;}
-button { background: #2563eb; color: white; cursor: pointer; border: none; font-weight: bold;}
-button:hover { background: #1d4ed8; }
-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-th { background: #2563eb; color: white; }
-.info-section { background: #eff6ff; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #bfdbfe; color: #1e40af;}
+body{font-family:Cairo,sans-serif;background:#f3f6fb;color:#1f2937}
+.main{max-width:1400px;margin:28px auto;background:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 28px #0f172a12}
+h2{font-weight:800;color:#17427e}
+.upload{height:100%;padding:18px;border:1px solid #dbe5f2;border-radius:14px;background:#f9fbff}
+.upload h5{font-weight:700;color:#17427e}
+.hint{font-size:13px;color:#64748b}
+.table thead th{background:#1e4f91;color:white;white-space:nowrap}
+.table td{white-space:nowrap;vertical-align:middle}
+.table-responsive{max-height:600px}
+.stat{border:1px solid #e3eaf4;border-radius:12px;padding:14px;height:100%}
+.stat strong{display:block;font-size:25px;color:#17427e}
 </style>
 </head>
 <body>
+<div class="container-fluid">
+<div class="main">
+  <header class="text-center mb-4">
+    <h2>📋 استخراج ومراجعة بصمات الموظفين</h2>
+    <p class="text-secondary mb-0">استخراج بصمات أكواد محددة بنفس شروط الشفت الموجودة في كودك الأصلي</p>
+  </header>
 
-<div class="container">
-  <h2>📋 تحليل بصمات العاملين لجميع الفروع تلقائياً</h2>
-  
-  <div class="info-section">
-    💡 بمجرد اختيار الملف والضغط على تحليل، سيقوم الكود باستخراج بيانات **كل الفروع** و حقل **اسم الفرع2 (Area Name)** الموجودة في الشيت معاً وتجميعها تلقائياً.
+  <div class="alert alert-info">
+    <b>شروط احتساب البصمات:</b>
+    يتم ترحيل البصمة التي تقع قبل بداية الشفت إلى تاريخ الشفت السابق، ثم تجميع البصمات داخل الفترة من بداية الشفت حتى بداية الشفت في اليوم التالي.
+    أول بصمة داخل الفترة هي الدخول، وآخر بصمة هي الخروج. إذا كان الفرق بينهما أقل من ساعة، يتم إلغاء الخروج كما في كودك الأصلي.
+    لا يتم تعديل ملف الحضور الأصلي.
   </div>
 
-  <input type="file" id="excelFile" accept=".xlsx, .xls">
-  
-  <br>
-  <label>⏰ بداية الشفت: </label>
-  <input type="time" id="shiftStart" value="07:00">
-  <br>
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="upload">
+        <h5>1️⃣ ملف الأكواد (.xlsx)</h5>
+        <input id="codesFile" type="file" class="form-control" accept=".xlsx,.xls">
+        <div class="hint mt-2">الأكواد موجودة مباشرة في العمود A بدون عنوان أو Header.</div>
+        <div id="codesName" class="small text-success mt-2"></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="upload">
+        <h5>2️⃣ ملف الحضور والانصراف (.xlsx)</h5>
+        <input id="attendanceFile" type="file" class="form-control" accept=".xlsx,.xls">
+        <div class="hint mt-2">الأعمدة الأساسية: Employee ID وDate وTime وDevice Name. ويمكن أن يحتوي على First Name وArea Name.</div>
+        <div id="attendanceName" class="small text-success mt-2"></div>
+      </div>
+    </div>
+  </div>
 
-  <button onclick="analyze()">تحليل البيانات</button>
-  <button onclick="exportExcel()">⬇️ تصدير البيانات إلى Excel</button>
+  <div class="row g-3 align-items-end mb-4">
+    <div class="col-md-4">
+      <label class="form-label fw-bold" for="sheetSelect">شيت الحضور</label>
+      <select id="sheetSelect" class="form-select" disabled><option value="">ارفع ملف الحضور أولاً</option></select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label fw-bold" for="shiftStart">⏰ بداية الشفت</label>
+      <input type="time" id="shiftStart" class="form-control" value="07:00">
+    </div>
+    <div class="col-md-5 d-flex flex-wrap gap-2">
+      <button id="analyzeBtn" class="btn btn-primary px-4" onclick="analyze()">🔍 تحليل البيانات</button>
+      <button class="btn btn-success px-4" onclick="exportExcel()">⬇️ تصدير النتائج Excel</button>
+      <button class="btn btn-outline-secondary px-4" onclick="clearResults()">مسح النتائج</button>
+    </div>
+  </div>
 
-  <table id="resultTable">
-    <thead>
-      <tr>
-        <th>كود الموظف</th>
-        <th>الاسم</th>
-        <th>اسم الفرع2</th>
-        <th>Device Name</th>
-        <th>التاريخ</th>
-        <th>دخول</th>
-        <th>خروج</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div id="status" class="alert d-none"></div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="stat">الأكواد المطلوبة<strong id="countCodes">0</strong></div></div>
+    <div class="col-6 col-lg-3"><div class="stat">أكواد لها بصمات<strong id="countFound">0</strong></div></div>
+    <div class="col-6 col-lg-3"><div class="stat">أكواد بدون بصمات<strong id="countMissing">0</strong></div></div>
+    <div class="col-6 col-lg-3"><div class="stat">سجلات الشفت<strong id="countRows">0</strong></div></div>
+  </div>
+
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#resultsPane">نتائج البصمات</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#missingPane">الأكواد بدون بصمات</button></li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="resultsPane">
+      <div class="table-responsive">
+        <table class="table table-bordered table-striped text-center" id="resultTable">
+          <thead><tr>
+            <th>كود الموظف</th><th>الاسم</th><th>اسم الفرع2</th><th>Device Name</th>
+            <th>تاريخ الشفت</th><th>دخول</th><th>خروج</th>
+          </tr></thead>
+          <tbody><tr><td colspan="7" class="text-secondary py-4">لم يتم تحليل بيانات بعد</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="missingPane">
+      <div class="table-responsive">
+        <table class="table table-bordered table-striped text-center" id="missingTable">
+          <thead><tr><th>م</th><th>كود الموظف</th><th>الحالة</th></tr></thead>
+          <tbody><tr><td colspan="3" class="text-secondary py-4">لا توجد بيانات بعد</td></tr></tbody>
+        </table>
+      </div>
+      <button class="btn btn-outline-danger mt-2" onclick="exportMissing()">تصدير الأكواد بدون بصمات</button>
+    </div>
+  </div>
+</div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+let attendanceWorkbook = null;
 let processedData = [];
+let missingCodes = [];
+let requestedCodes = [];
 
-// تنسيق التاريخ إلى DD/MM/YYYY للعرض والتصدير
-function formatDateDMY(dateObj) {
-  const d = new Date(dateObj);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+document.getElementById('codesFile').addEventListener('change', e => {
+  document.getElementById('codesName').textContent = e.target.files[0] ? 'الملف: ' + e.target.files[0].name : '';
+});
+
+document.getElementById('attendanceFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  document.getElementById('attendanceName').textContent = file ? 'الملف: ' + file.name : '';
+  const select = document.getElementById('sheetSelect');
+  select.innerHTML = '';
+  select.disabled = true;
+  attendanceWorkbook = null;
+  if (!file) return;
+  try {
+    attendanceWorkbook = await readWorkbook(file);
+    attendanceWorkbook.SheetNames.forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    });
+    select.disabled = false;
+  } catch (err) {
+    showStatus('تعذر قراءة ملف الحضور: ' + err.message, 'danger');
+  }
+});
+
+function readWorkbook(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { resolve(XLSX.read(e.target.result, {type:'array', cellDates:true})); }
+      catch(err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
+    reader.readAsArrayBuffer(file);
+  });
 }
 
-// تنسيق الوقت للعرض والتصدير ص/م
-function formatTime(dateObj) {
-  return new Date(dateObj).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+function normalizeCode(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
 }
 
-// دالة تحليل البصمات الأساسية لجميع الفروع
-function analyze() {
-  const fileInput = document.getElementById("excelFile");
-  const shiftInput = document.getElementById("shiftStart");
-
-  if (!fileInput.files.length) { alert("يرجى اختيار ملف Excel أولاً"); return; }
-  if (!shiftInput.value) { alert("يرجى تحديد بداية الشفت"); return; }
-
-  const shiftHour = parseInt(shiftInput.value.split(':')[0], 10);
-  const shiftMinute = parseInt(shiftInput.value.split(':')[1], 10);
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet);
-
-    const records = {};
-
-    json.forEach(row => {
-      // التحقق من وجود الحقول الأساسية بالشيت
-      if (!row["Employee ID"] || !row["Date"] || !row["Time"] || !row["Device Name"]) return;
-      
-      const empId = row["Employee ID"].toString().trim();
-      const deviceName = row["Device Name"].toString().trim();
-      
-      // قراءة حقل Area Name ليصبح تحت مسمى branch2 (اسم الفرع2)
-      const branch2 = row["Area Name"] ? row["Area Name"].toString().trim() : "غير محدد";
-      
-      // معالجة الاسم إذا كان فارغاً أو مكرراً بالكود
-      let name = row["First Name"] ? row["First Name"].toString().trim() : "";
-      if (name === "" || name === empId) {
-        name = "بدون اسم"; 
+function parseDateTime(dateValue, timeValue) {
+  // يدعم تاريخ Excel ككائن Date أو رقم تسلسلي أو نص.
+  let datePart = null;
+  if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+    datePart = new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate());
+  } else if (typeof dateValue === 'number') {
+    const p = XLSX.SSF.parse_date_code(dateValue);
+    if (p) datePart = new Date(p.y, p.m - 1, p.d);
+  } else {
+    const s = String(dateValue ?? '').trim();
+    let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if (m) datePart = new Date(+m[1], +m[2]-1, +m[3]);
+    else {
+      m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+      if (m) datePart = new Date(+m[3], +m[2]-1, +m[1]);
+      else {
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) datePart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
       }
+    }
+  }
+  if (!datePart || isNaN(datePart.getTime())) return null;
 
-      // تجميع التاريخ والوقت القياسي من أعمدة الملف
-      const dateTimeStr = `${row["Date"]}T${row["Time"]}`;
-      const dateTime = new Date(dateTimeStr);
-      if (isNaN(dateTime.getTime())) return; 
+  let hours = 0, minutes = 0, seconds = 0, milliseconds = 0;
+  if (timeValue instanceof Date && !isNaN(timeValue.getTime())) {
+    hours = timeValue.getHours();
+    minutes = timeValue.getMinutes();
+    seconds = timeValue.getSeconds();
+    milliseconds = timeValue.getMilliseconds();
+  } else if (typeof timeValue === 'number') {
+    // وقت Excel غالباً جزء عشري من اليوم
+    const fraction = ((timeValue % 1) + 1) % 1;
+    const totalMs = Math.round(fraction * 86400000);
+    hours = Math.floor(totalMs / 3600000);
+    minutes = Math.floor((totalMs % 3600000) / 60000);
+    seconds = Math.floor((totalMs % 60000) / 1000);
+    milliseconds = totalMs % 1000;
+  } else {
+    const s = String(timeValue ?? '').trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?\s*(AM|PM|ص|م)?$/i);
+    if (!m) return null;
+    hours = +m[1]; minutes = +m[2]; seconds = +(m[3] || 0);
+    milliseconds = m[4] ? Math.round(Number('0.' + m[4]) * 1000) : 0;
+    const suffix = (m[5] || '').toUpperCase();
+    if ((suffix === 'PM' || suffix === 'م') && hours < 12) hours += 12;
+    if ((suffix === 'AM' || suffix === 'ص') && hours === 12) hours = 0;
+    if (hours > 23 || minutes > 59 || seconds > 59) return null;
+  }
 
-      // حساب الشفت المستهدف
+  datePart.setHours(hours, minutes, seconds, milliseconds);
+  return datePart;
+}
+
+function formatDateDMY(dateObj) {
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  return `${d}/${m}/${dateObj.getFullYear()}`;
+}
+function formatTime(dateObj) {
+  return new Date(dateObj).toLocaleTimeString('en-US', {
+    hour:'2-digit', minute:'2-digit', hour12:true
+  });
+}
+function showStatus(message, type='info') {
+  const el = document.getElementById('status');
+  el.className = 'alert alert-' + type;
+  el.textContent = message;
+}
+
+async function analyze() {
+  const codesFile = document.getElementById('codesFile').files[0];
+  const shiftValue = document.getElementById('shiftStart').value;
+  if (!codesFile) { alert('يرجى اختيار ملف الأكواد أولاً'); return; }
+  if (!attendanceWorkbook) { alert('يرجى اختيار ملف الحضور والانصراف'); return; }
+  if (!shiftValue) { alert('يرجى تحديد بداية الشفت'); return; }
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري التحليل...';
+
+  try {
+    // ملف الأكواد: العمود الأول A مباشرة، بدون Header.
+    const codeWorkbook = await readWorkbook(codesFile);
+    const codeSheet = codeWorkbook.Sheets[codeWorkbook.SheetNames[0]];
+    const codeRows = XLSX.utils.sheet_to_json(codeSheet, {header:1, defval:'', raw:true});
+    const codeSet = new Set();
+    codeRows.forEach(row => {
+      const code = normalizeCode(row[0]);
+      if (code) codeSet.add(code);
+    });
+    requestedCodes = Array.from(codeSet);
+    if (!requestedCodes.length) throw new Error('لم يتم العثور على أكواد في العمود الأول من ملف الأكواد.');
+
+    const sheetName = document.getElementById('sheetSelect').value;
+    const sheet = attendanceWorkbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {defval:'', raw:true});
+    if (!rows.length) throw new Error('شيت الحضور فارغ.');
+
+    const headers = Object.keys(rows[0]);
+    const findHeader = names => headers.find(h => names.includes(String(h).trim().toLowerCase()));
+    const empCol = findHeader(['employee id','employee code','id','code','كود الموظف','الكود','كود']);
+    const dateCol = findHeader(['date','التاريخ']);
+    const timeCol = findHeader(['time','الوقت']);
+    const deviceCol = findHeader(['device name','device','اسم الجهاز']);
+    const nameCol = findHeader(['first name','name','employee name','الاسم','اسم الموظف']);
+    const branchCol = findHeader(['area name','اسم الفرع2','branch','branch name','الفرع']);
+
+    const requiredMissing = [];
+    if (!empCol) requiredMissing.push('Employee ID');
+    if (!dateCol) requiredMissing.push('Date');
+    if (!timeCol) requiredMissing.push('Time');
+    if (!deviceCol) requiredMissing.push('Device Name');
+    if (requiredMissing.length) throw new Error('الأعمدة المطلوبة غير موجودة: ' + requiredMissing.join('، '));
+
+    const [shiftHour, shiftMinute] = shiftValue.split(':').map(Number);
+    const records = {};
+    let invalidRows = 0;
+
+    rows.forEach(row => {
+      // لا نعالج إلا الأكواد الموجودة في ملف الأكواد
+      if (row[empCol] === '' || row[empCol] === null || row[empCol] === undefined) return;
+      const empId = normalizeCode(row[empCol]);
+      if (!codeSet.has(empId)) return;
+
+      if (row[dateCol] === '' || row[timeCol] === '' || row[deviceCol] === '') return;
+
+      const deviceName = String(row[deviceCol]).trim();
+      const branch2 = row[branchCol] ? String(row[branchCol]).trim() : 'غير محدد';
+
+      let name = row[nameCol] ? String(row[nameCol]).trim() : '';
+      if (name === '' || name === empId) name = 'بدون اسم';
+
+      const dateTime = parseDateTime(row[dateCol], row[timeCol]);
+      if (!dateTime) { invalidRows++; return; }
+
+      // نفس منطق كودك الأصلي حرفياً في حساب نطاق الشفت وترحيل البصمة المبكرة.
       const shiftStart = new Date(dateTime);
       shiftStart.setHours(shiftHour, shiftMinute, 0, 0);
+
       const shiftEnd = new Date(shiftStart);
       shiftEnd.setDate(shiftEnd.getDate() + 1);
 
-      // ترحيل البصمات المبكرة لليوم السابق إن لزم الأمر
       if (dateTime < shiftStart) {
         shiftStart.setDate(shiftStart.getDate() - 1);
         shiftEnd.setDate(shiftEnd.getDate() - 1);
       }
+
       const dateKey = formatDateDMY(shiftStart);
 
-      if (!records[empId]) records[empId] = {};
-      if (!records[empId][dateKey]) records[empId][dateKey] = { in: null, out: null, name, device: deviceName, b2: branch2 };
-
-      // فلترة البصمات داخل نطاق الشفت
+      // نفس شرط النطاق: من بداية الشفت وحتى بداية الشفت في اليوم التالي.
       if (dateTime >= shiftStart && dateTime <= shiftEnd) {
+        if (!records[empId]) records[empId] = {};
+        if (!records[empId][dateKey]) {
+          records[empId][dateKey] = {
+            in: null, out: null, name, device: deviceName, b2: branch2
+          };
+        }
+
         if (!records[empId][dateKey].in || dateTime < records[empId][dateKey].in) {
           records[empId][dateKey].in = dateTime;
         }
@@ -139,90 +326,158 @@ function analyze() {
       }
     });
 
-    // التأكد من أن الفارق بين الدخول والخروج لا يقل عن ساعة واحدة
+    // نفس شرطك الأصلي: إذا كان الفرق أقل من ساعة، يتم إلغاء الخروج فقط.
     Object.keys(records).forEach(empId => {
       Object.keys(records[empId]).forEach(date => {
         const rec = records[empId][date];
         if (rec.in && rec.out) {
           const diff = (rec.out - rec.in) / (1000 * 60 * 60);
-          if (diff < 1) rec.out = null; 
+          if (diff < 1) rec.out = null;
         }
       });
     });
 
-    // تجميع المخرجات لجميع الفروع معاً
     let tempData = [];
     Object.keys(records).forEach(empId => {
       Object.keys(records[empId]).forEach(date => {
-        const { in: inTime, out: outTime, name, device, b2 } = records[empId][date];
-        if (!inTime && !outTime) return;
+        const rec = records[empId][date];
+        if (!rec.in && !rec.out) return;
         tempData.push({
           empId,
-          name,
-          branch2: b2,
-          device,
+          name: rec.name,
+          branch2: rec.b2,
+          device: rec.device,
           date,
-          inTime: inTime ? formatTime(inTime) : "",
-          outTime: outTime ? formatTime(outTime) : ""
+          inTime: rec.in ? formatTime(rec.in) : '',
+          outTime: rec.out ? formatTime(rec.out) : ''
         });
       });
     });
 
-    // الترتيب الأبجدي: حسب اسم الفرع2 أولاً، ثم Device Name، ثم كود الموظف، ثم التاريخ
-    tempData.sort((a, b) => {
+    // نفس ترتيب الكود الأصلي: الفرع ثم الجهاز ثم الكود ثم التاريخ.
+    tempData.sort((a,b) => {
       if (a.branch2 !== b.branch2) return a.branch2.localeCompare(b.branch2);
       if (a.device !== b.device) return a.device.localeCompare(b.device);
-      if (a.empId !== b.empId) return a.empId.localeCompare(b.empId, undefined, {numeric: true});
+      if (a.empId !== b.empId) return a.empId.localeCompare(b.empId, undefined, {numeric:true});
       const d1 = a.date.split('/');
       const d2 = b.date.split('/');
-      return new Date(d1[2], d1[1] - 1, d1[0]) - new Date(d2[2], d2[1] - 1, d2[0]);
-    });
-
-    // عرض جميع النتائج في الجدول الموضح بالصفحة
-    const tbody = document.querySelector("#resultTable tbody");
-    tbody.innerHTML = "";
-    tempData.forEach(row => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${row.empId}</td>
-        <td>${row.name}</td>
-        <td>${row.branch2}</td>
-        <td>${row.device}</td>
-        <td>${row.date}</td>
-        <td>${row.inTime}</td>
-        <td>${row.outTime}</td>
-      `;
-      tbody.appendChild(tr);
+      return new Date(d1[2], d1[1]-1, d1[0]) - new Date(d2[2], d2[1]-1, d2[0]);
     });
 
     processedData = tempData;
-    if(tempData.length === 0) {
-      alert("لم يتم العثور على أي حركات دخول أو خروج في الملف.");
-    } else {
-      alert("تم تحليل جميع البيانات واستخراج حقل اسم الفرع2 بنجاح!");
-    }
-  };
-  reader.readAsArrayBuffer(fileInput.files[0]);
+    const foundCodes = new Set(tempData.map(row => row.empId));
+    missingCodes = requestedCodes.filter(code => !foundCodes.has(code));
+
+    renderResults();
+    document.getElementById('countCodes').textContent = requestedCodes.length;
+    document.getElementById('countFound').textContent = foundCodes.size;
+    document.getElementById('countMissing').textContent = missingCodes.length;
+    document.getElementById('countRows').textContent = tempData.length;
+
+    showStatus(
+      `تم التحليل بنجاح وفق شروط كودك الأصلي.\n` +
+      `الأكواد المطلوبة: ${requestedCodes.length}\n` +
+      `الأكواد التي لها بصمات: ${foundCodes.size}\n` +
+      `الأكواد بدون بصمات: ${missingCodes.length}\n` +
+      `سجلات الشفت المستخرجة: ${tempData.length}\n` +
+      `صفوف التاريخ/الوقت غير الصالحة: ${invalidRows}\n` +
+      `لم يتم تعديل ملف الحضور الأصلي.`,
+      'success'
+    );
+  } catch (error) {
+    console.error(error);
+    showStatus('حدث خطأ أثناء التحليل: ' + error.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 تحليل البيانات';
+  }
 }
 
-// دالة تصدير البيانات الشاملة لملف إكسيل واحد يتضمن حقل اسم الفرع2
+function renderResults() {
+  const tbody = document.querySelector('#resultTable tbody');
+  tbody.innerHTML = '';
+  if (!processedData.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-secondary py-4">لم يتم العثور على بصمات مطابقة</td></tr>';
+  } else {
+    processedData.forEach(row => {
+      const tr = document.createElement('tr');
+      [row.empId,row.name,row.branch2,row.device,row.date,row.inTime,row.outTime].forEach(value => {
+        const td = document.createElement('td');
+        td.textContent = value ?? '';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  const missingBody = document.querySelector('#missingTable tbody');
+  missingBody.innerHTML = '';
+  if (!missingCodes.length) {
+    missingBody.innerHTML = '<tr><td colspan="3" class="text-success py-4">جميع الأكواد المطلوبة لها بصمات</td></tr>';
+  } else {
+    missingCodes.forEach((code,index) => {
+      const tr = document.createElement('tr');
+      [index+1,code,'لم يتم العثور على بصمات'].forEach(value => {
+        const td = document.createElement('td');
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      missingBody.appendChild(tr);
+    });
+  }
+}
+
 function exportExcel() {
-  if (!processedData.length) { alert("لا توجد بيانات مستخرجة لتصديرها! يرجى الضغط على زر تحليل البيانات أولاً."); return; }
+  if (!processedData.length) {
+    alert('لا توجد بيانات مستخرجة للتصدير. يرجى تحليل البيانات أولاً.');
+    return;
+  }
   const exportData = processedData.map(row => ({
-    "كود الموظف": row.empId,
-    "الاسم": row.name,
-    "اسم الفرع2": row.branch2,
-    "Device Name": row.device,
-    "التاريخ": row.date,
-    "دخول": row.inTime,
-    "خروج": row.outTime
+    'كود الموظف': row.empId,
+    'الاسم': row.name,
+    'اسم الفرع2': row.branch2,
+    'Device Name': row.device,
+    'التاريخ': row.date,
+    'دخول': row.inTime,
+    'خروج': row.outTime
   }));
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(exportData);
-  XLSX.utils.book_append_sheet(wb, ws, "تحليل الحضور");
-  XLSX.writeFile(wb, "تحليل_بصمات_الفروع.xlsx");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportData), 'تحليل الحضور');
+
+  if (missingCodes.length) {
+    const missingSheet = XLSX.utils.json_to_sheet(missingCodes.map(code => ({
+      'كود الموظف': code,
+      'الحالة': 'لم يتم العثور على بصمات'
+    })));
+    XLSX.utils.book_append_sheet(wb, missingSheet, 'أكواد بدون بصمات');
+  }
+  XLSX.writeFile(wb, 'تحليل_بصمات_الفروع.xlsx');
+}
+
+function exportMissing() {
+  if (!missingCodes.length) { alert('لا توجد أكواد بدون بصمات.'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(missingCodes.map(code => ({
+    'كود الموظف': code,
+    'الحالة': 'لم يتم العثور على بصمات'
+  })));
+  XLSX.utils.book_append_sheet(wb, ws, 'بدون بصمات');
+  XLSX.writeFile(wb, 'الأكواد_بدون_بصمات.xlsx');
+}
+
+function clearResults() {
+  processedData = [];
+  missingCodes = [];
+  requestedCodes = [];
+  document.querySelector('#resultTable tbody').innerHTML =
+    '<tr><td colspan="7" class="text-secondary py-4">لم يتم تحليل بيانات بعد</td></tr>';
+  document.querySelector('#missingTable tbody').innerHTML =
+    '<tr><td colspan="3" class="text-secondary py-4">لا توجد بيانات بعد</td></tr>';
+  ['countCodes','countFound','countMissing','countRows'].forEach(id => {
+    document.getElementById(id).textContent = '0';
+  });
+  document.getElementById('status').className = 'alert d-none';
 }
 </script>
 </body>
 </html>
-احمد جادو.
